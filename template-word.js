@@ -32,7 +32,7 @@ export async function applyTemplateWord(buffer,templateBuffer,enabled=articleDef
  const body=first($,root,'body'),tBody=first(t$,tRoot,'body');if(!body||!tBody)throw Error('無法取得原稿或範本本文。');
  ns($,root,tRoot);$(root).attr('xmlns:r',R);
  const tParas=elements(t$,tBody,'p');
- const base={Title:0,Author:1,Abstract:2,H1:4,Body1:5,H2:6,Body2:7,H3:8,Body3:9,H4:10,Body4:11,Conclusion:24,Reference:27,Bio:37,Caption:5,Cell:9};
+ const base={Title:0,Author:1,Abstract:2,H1:4,Body1:5,H2:6,Body2:7,H3:8,Body3:9,H4:10,Body4:11,Conclusion:24,Reference:27,Bio:Math.max(0,tParas.findLastIndex(p=>/作者.*[/／].*[/／]/.test(text(t$,p)))),Caption:5,Cell:9};
  const prefix=`MIOS_${policy.sha256.slice(0,8)}_`;
  const tStyles=parse(await tpl.file('word/styles.xml').async('string'));
  const styles=parse(await zip.file('word/styles.xml')?.async('string')||`<w:styles xmlns:w="${W}"/>`);
