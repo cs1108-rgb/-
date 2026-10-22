@@ -1,0 +1,35 @@
+import express from 'express';
+import multer from 'multer';
+import {DatabaseSync} from 'node:sqlite';
+import {mkdirSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {analyzeArticle,articleDefaults,ruleDefinitions,policy} from './article.js';
+const dataDir=process.env.MEASURE_DATA_DIR||'data';
+mkdirSync(dataDir,{recursive:true});
+const db=new DatabaseSync(dataDir+'/measurements.sqlite');
+db.exec('CREATE TABLE IF NOT EXISTS reports(id INTEGER PRIMARY KEY, name TEXT, period TEXT, created TEXT, total INTEGER, issues TEXT, rows TEXT); CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY, value TEXT)');
+const existing=new Set(db.prepare('PRAGMA table_info(reports)').all().map(c=>c.name));
+for(const [name,type]of [['kind',"TEXT DEFAULT 'measurement'"],['metadata','TEXT'],['rules','TEXT'],['original','BLOB']])if(!existing.has(name))db.exec(`ALTER TABLE reports ADD COLUMN ${name} ${type}`);
+const app=express();app.use(express.json({limit:'100kb'}));
+const getRules=()=>({...articleDefaults,...JSON.parse(db.prepare('SELECT value FROM settings WHERE id=2').get()?.value||'{}')});
+app.get('/api/rules',(req,res)=>res.json(getRules()));
+app.get('/api/policy',(req,res)=>res.json({...policy,rules:ruleDefinitions,limitations:['檢核以 Word 文件結構為準，不產生可靠頁碼。','外部圖片、浮動圖形與文字方塊可能需人工確認。','文章論述、文獻正確性及線條圖類型仍須人工審查。','範本的文字規範優先於其既有樣式；範本本身可能有格式差異或未替換文字。']}));
+app.put('/api/rules',(req,res)=>{const r={};for(const key of Object.keys(articleDefaults)){if(req.body[key]!==undefined&&typeof req.body[key]!=='boolean')return res.status(400).json({error:'規則值必須是布林值'});r[key]=req.body[key]??getRules()[key];}db.prepare('INSERT OR REPLACE INTO settings VALUES(2,?)').run(JSON.stringify(r));res.json(r)});
+const decode=r=>({...r,issues:JSON.parse(r.issues||'[]'),...(r.rows?{rows:JSON.parse(r.rows)}:{}),metadata:r.metadata?JSON.parse(r.metadata):null,rules:r.rules?JSON.parse(r.rules):null});
+app.get('/api/reports',(req,res)=>res.json(db.prepare('SELECT id,name,period,created,total,issues,kind,metadata,rules FROM reports ORDER BY id DESC').all().map(decode)));
+app.get('/api/reports/:id',(req,res)=>{const r=db.prepare('SELECT id,name,period,created,total,issues,rows,kind,metadata,rules, original IS NOT NULL AS hasOriginal FROM reports WHERE id=?').get(req.params.id);if(!r)return res.status(404).json({error:'找不到紀錄'});res.json(decode(r))});
+app.get('/api/reports/:id/original',(req,res)=>{const r=db.prepare('SELECT name,original FROM reports WHERE id=?').get(req.params.id);if(!r?.original)return res.status(404).json({error:'此紀錄未保留原始 Word 檔案'});res.setHeader('Content-Disposition',`attachment; filename="article.docx"; filename*=UTF-8''${encodeURIComponent(r.name)}`);res.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document').send(Buffer.from(r.original))});
+const templatePath=fileURLToPath(new URL('./templates/article-format.docx',import.meta.url));
+app.get(['/api/template','/api/template/word'],(req,res)=>res.download(templatePath,'量測資訊撰文格式.docx'));
+app.post('/api/upload',multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:1}}).single('file'),async(req,res)=>{try{
+ if(!req.file||! /\.docx$/i.test(req.file.originalname))return res.status(400).json({error:'文章格式檢核僅支援 Word（.docx）。舊版 .doc 請先另存為 .docx。'});
+ const period=req.body.period;if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(period||''))throw Error('請選擇有效的刊期月份');
+ const rules=getRules();const report=await analyzeArticle(req.file.buffer,rules);
+ const name=/[\u0080-\u00ff]/.test(req.file.originalname)?Buffer.from(req.file.originalname,'latin1').toString('utf8'):req.file.originalname;
+ const metadata={summary:report.summary,policy:report.policy,checks:report.checks};
+ const result=db.prepare('INSERT INTO reports(name,period,created,total,issues,rows,kind,metadata,rules,original) VALUES(?,?,?,?,?,?,?,?,?,?)').run(name,period,new Date().toISOString(),report.summary.paragraphs,JSON.stringify(report.issues),JSON.stringify(report.paragraphs),'article',JSON.stringify(metadata),JSON.stringify(rules),req.file.buffer);
+ res.json({id:Number(result.lastInsertRowid),total:report.summary.paragraphs,issues:report.issues,metadata});
+ }catch(e){res.status(400).json({error:e.message})}});
+app.use((err,req,res,next)=>res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?'檔案不可超過 10 MB':err.message}));
+if(process.env.NODE_ENV==='production'){app.use(express.static('dist'));}else{const {createServer}=await import('vite');const vite=await createServer({server:{middlewareMode:true},appType:'spa'});app.use(vite.middlewares)}
+app.listen(Number(process.env.PORT)||3000,process.env.MEASURE_HOST||'127.0.0.1',()=>console.log('MeasureOS ready on port '+(process.env.PORT||3000)));
