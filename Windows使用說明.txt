@@ -1,9 +1,9 @@
-衡序 MeasureOS｜Windows 本機版
+量測資訊 MeasureInformationOS｜Windows 本機版
 =============================
 
 一、首次準備
 1. 從 https://nodejs.org 安裝 Node.js 24 LTS，保留安裝程式的預設選項。
-2. 將下載的 ZIP「全部解壓縮」到你的電腦，例如：C:\MeasureOS。
+2. 將下載的 ZIP「全部解壓縮」到你的電腦，例如：C:\MeasureInformationOS。
    不要直接在 ZIP 內執行，也建議避開公用或雲端同步的資料夾。
 3. 雙擊 SETUP-WINDOWS.cmd，等待安裝與建置完成。
    首次安裝需要網路以下載套件；不需要上傳文章。

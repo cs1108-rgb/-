@@ -32,4 +32,4 @@ app.post('/api/upload',multer({storage:multer.memoryStorage(),limits:{fileSize:1
  }catch(e){res.status(400).json({error:e.message})}});
 app.use((err,req,res,next)=>res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?'檔案不可超過 10 MB':err.message}));
 if(process.env.NODE_ENV==='production'){app.use(express.static('dist'));}else{const {createServer}=await import('vite');const vite=await createServer({server:{middlewareMode:true},appType:'spa'});app.use(vite.middlewares)}
-app.listen(Number(process.env.PORT)||3000,process.env.MEASURE_HOST||'127.0.0.1',()=>console.log('MeasureOS ready on port '+(process.env.PORT||3000)));
+app.listen(Number(process.env.PORT)||3000,process.env.MEASURE_HOST||'127.0.0.1',()=>console.log('MeasureInformationOS ready on port '+(process.env.PORT||3000)));

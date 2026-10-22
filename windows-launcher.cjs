@@ -17,14 +17,14 @@ async function main(){
  if(Number(process.versions.node.split('.')[0])<24)throw Error('Node.js 24 LTS or newer is required. Install Node.js from https://nodejs.org and reopen this window.');
  const setupOnly=process.argv.includes('--setup');
  if(setupOnly||!fs.existsSync(path.join(root,'node_modules','express'))||!fs.existsSync(path.join(root,'dist','index.html'))){
-  console.log('Preparing MeasureOS. First setup requires Internet access. Your data folder will be preserved.');
+  console.log('Preparing MeasureInformationOS. First setup requires Internet access. Your data folder will be preserved.');
   npm('ci --no-audit --no-fund');npm('run build');
-  console.log('\nSetup complete. Use START-WINDOWS.cmd to open MeasureOS.');
+  console.log('\nSetup complete. Use START-WINDOWS.cmd to open MeasureInformationOS.');
  }
  if(setupOnly)return;
  const port=Number(process.env.PORT||3000);
  if(!Number.isInteger(port)||port<1024||port>65535)throw Error('PORT must be a number between 1024 and 65535.');
- await new Promise((resolve,reject)=>{const probe=net.createServer();probe.once('error',()=>reject(Error(`Port ${port} is already in use. Close the other MeasureOS window or choose another PORT.`)));probe.listen(port,'127.0.0.1',()=>probe.close(resolve));});
+ await new Promise((resolve,reject)=>{const probe=net.createServer();probe.once('error',()=>reject(Error(`Port ${port} is already in use. Close the other MeasureInformationOS window or choose another PORT.`)));probe.listen(port,'127.0.0.1',()=>probe.close(resolve));});
  const url=`http://127.0.0.1:${port}`;
  const child=spawn(process.execPath,['start-production.js'],{cwd:root,stdio:'inherit',env:{...process.env,MEASURE_HOST:'127.0.0.1',PORT:String(port)}});
  let childError;
@@ -41,7 +41,7 @@ async function main(){
   await delay(100);
  }
  if(!ready){stop();throw Error('The service did not become ready. Check the error above.');}
- console.log(`\nMeasureOS is ready: ${url}\nOnly this computer can connect. Keep this window open.\nUse Ctrl+C to stop. Word files and reports remain in the data folder.\n`);
+ console.log(`\nMeasureInformationOS is ready: ${url}\nOnly this computer can connect. Keep this window open.\nUse Ctrl+C to stop. Word files and reports remain in the data folder.\n`);
  if(process.platform==='win32'&&!process.argv.includes('--no-browser')){
   const browser=spawn(process.env.ComSpec||'cmd.exe',['/d','/s','/c',`start "" "${url}"`],{stdio:'ignore'});
   browser.on('error',()=>console.log(`Open your browser manually: ${url}`));

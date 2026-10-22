@@ -21,7 +21,7 @@ export function saveBlob(blob,name){const url=URL.createObjectURL(blob);const a=
 export async function exportBackup(){
  const reports=await getAll();const entries=[];
  for(const r of reports){const{original,...rest}=r;entries.push({...rest,originalBase64:original?await toBase64(original):null});}
- saveBlob(new Blob([JSON.stringify({format:'measureos-backup-v1',created:new Date().toISOString(),rules:await rules(),reports:entries})],{type:'application/json'}),`衡序歷史備份-${new Date().toLocaleDateString('sv-SE')}.json`);
+ saveBlob(new Blob([JSON.stringify({format:'measureos-backup-v1',created:new Date().toISOString(),rules:await rules(),reports:entries})],{type:'application/json'}),`量測資訊歷史備份-${new Date().toLocaleDateString('sv-SE')}.json`);
  return entries.length;
 }
 function validateReport(r){

@@ -1,11 +1,11 @@
-# 衡序 MeasureOS — 量測資訊文章檢核
+# 量測資訊 MeasureInformationOS — 量測資訊文章檢核
 
 ## Windows 免安裝：單一 HTML（建議）
-1. 下載 [單檔 HTML 壓縮包](releases/MeasureOS-HTML.zip)，全部解壓縮後只有一個 `MeasureOS.html`。
+1. 下載 [單檔 HTML 壓縮包](releases/MeasureInformationOS-HTML.zip)，全部解壓縮後只有一個 `MeasureInformationOS.html`。
 2. 使用最新版 Edge 或 Chrome 雙擊開啟，不需安裝 Node.js，也不需要啟動命令視窗或伺服器。
 3. 點「新增文章檢核」，選擇刊期及 `.docx` 文章，即可查看逐項錯誤與修改建議。
 
-亦提供 [原始 HTML 檔案](releases/MeasureOS.html)。GitHub 可能顯示原始碼，請使用「Download raw file」下載並保留 `.html` 副檔名，不要將副檔名改為 `.txt`。
+亦提供 [原始 HTML 檔案](releases/MeasureInformationOS.html)。GitHub 可能顯示原始碼，請使用「Download raw file」下載並保留 `.html` 副檔名，不要將副檔名改為 `.txt`。
 
 Word 解析、檢核程式與原始範本皆包在 HTML 內，執行時不呼叫後端、不載入 CDN、不傳送文件至伺服器。圖表與文字檢核引擎與 Node.js 版共用。
 
@@ -31,7 +31,7 @@ Word 解析、檢核程式與原始範本皆包在 HTML 內，執行時不呼叫
 已用瀏覽器攔截 HTML 載入並關閉網路，驗證 Word 上傳、原稿下載、規則／歷史重新載入、備份還原與去重、行動版及禁止儲存時的提示。載入後沒有 HTTP 請求。測試環境的瀏覽器管理政策封鎖 `file://`，所以 Windows 雙擊本機檔案仍待實機驗證。
 
 ## Windows Node.js 版（另一種選擇）
-1. 下載 [Windows 本機程式包](releases/MeasureOS-Windows.zip)，並全部解壓縮。
+1. 下載 [Windows 本機程式包](releases/MeasureInformationOS-Windows.zip)，並全部解壓縮。
 2. 安裝 [Node.js 24 LTS](https://nodejs.org/)。
 3. 雙擊 `SETUP-WINDOWS.cmd`（首次需網路），完成後雙擊 `START-WINDOWS.cmd`。
 4. 在自動開啟的瀏覽器點「新增文章檢核」即可上傳 Word。
