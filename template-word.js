@@ -82,6 +82,11 @@ export async function applyTemplateWord(buffer,templateBuffer,enabled=articleDef
  const heading=(info,s)=>{if(info?.level&&info.level<=4&&!/這是.*範例/.test(s))return info.level;const marker=s.match(/Heading\s*([1-4])/i);if(marker)return Number(marker[1]);if(/^[一二三四五六七八九十]+[、．]/.test(s))return 1;if(/^[（(][一二三四五六七八九十]+[）)]/.test(s))return 2;const decimal=s.match(/^(\d+(?:\.\d+)+)[.、\s]+[^\d]/);if(decimal)return Math.min(4,decimal[1].split('.').length);if(/^\d+[、.．]\s*[^\d]/.test(s))return hasChineseHeadings?3:1;if(/^[（(]\d+[）)]/.test(s))return hasChineseHeadings?4:2;return null;};
  const abstractEnd=abstract?top.find(x=>x.i>abstract.i&&heading(styleInfo.get(x.i+1),x.text))?.i??Infinity:0;
  const author=top[1]&&top[1].text.length<110&&!heading(styleInfo.get(top[1].i+1),top[1].text)&&!/[。！？]/.test(top[1].text)?top[1]:null;
+ if(author&&/^[\u3400-\u9fff]{2,5}(?:\s*[,，;；]\s*[\u3400-\u9fff]{2,5})+$/.test(author.text.trim())){
+  for(const t of all($,author.p,'t'))$(t).text($(t).text().replace(/[,，;；]/g,'、'));
+  originalText[author.i]=text($,author.p);
+  changes.push({paragraph:author.i+1,location:`第 ${author.i+1} 段`,excerpt:author.text,field:'作者分隔符號',before:author.text,after:text($,author.p)});
+ }else if(author&&/[，,；;／/＆&]/.test(author.text))warnings.push('作者列含姓名與單位等混合資訊，無法安全區分分隔符號；請人工將作者姓名間改用頓號「、」。');
  if(!author)warnings.push('無法確定作者列；未補寫作者，請人工確認標題後的作者位置。');
  if(!abstract)warnings.push('未找到獨立摘要標題，開頭的一般文字保留並套用摘要／內文格式，請確認摘要範圍。');
  for(const[name,item]of [['結論',conclusion],['參考文獻',refs],['作者簡介',bio]])if(!item)warnings.push(`未辨識到「${name}」獨立章節，保留原文，不新增虛構內容。`);
@@ -93,6 +98,8 @@ export async function applyTemplateWord(buffer,templateBuffer,enabled=articleDef
   let spacing=first($,result,'spacing');if(!spacing){$(result).append('<w:spacing/>');spacing=first($,result,'spacing');}
   for(const[k,v]of [['before','0'],['after','0'],['line','288'],['lineRule','auto']])if(val(spacing,k)===undefined)put($,spacing,k,v);
   if(['Author','Title','H1','H2','H3','H4','Reference','Bio'].includes(role)&&!first(t$,first(t$,tParas[base[role]],'pPr'),'spacing'))put($,spacing,'line',240);
+  if(role==='Caption'){remove($,result,'jc');$(result).append('<w:jc w:val="center"/>');}
+  if(['Body1','Body2','Body3','Body4','Abstract','Conclusion'].includes(role)){remove($,result,'jc');$(result).append('<w:jc w:val="both"/>');put($,spacing,'line',288);put($,spacing,'lineRule','auto');}
   if(!first($,result,'jc'))$(result).append(`<w:jc w:val="${role==='Author'||role==='Title'?'center':role==='Caption'?'center':role.startsWith('H')||role==='Reference'||role==='Bio'?'left':'both'}"/>`);
   $(result).append('<w:snapToGrid w:val="0"/>');return result;
  }

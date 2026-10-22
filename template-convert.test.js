@@ -39,3 +39,16 @@ test('沒有的章節只提示，不把範例作者、內文或圖片搬入文�
  const zip=await JSZip.loadAsync(source);const $=xml(await zip.file('word/document.xml').async('string'));$('w\\:body').empty().append('<w:p><w:r><w:t>新型感測技術</w:t></w:r></w:p><w:p><w:r><w:t>陳大明</w:t></w:r></w:p><w:p><w:r><w:t>本文探討感測技術的發展與效益。</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="16000" w:h="9000"/></w:sectPr>');zip.file('word/document.xml',$.xml(),{createFolders:false});
  const input=await zip.generateAsync({type:'uint8array'});const result=await applyTemplateWord(input,template);assert.deepEqual(await textList(result.bytes),['新型感測技術','陳大明','本文探討感測技術的發展與效益。']);assert.ok(result.warnings.some(w=>w.includes('結論')));assert.ok(result.warnings.some(w=>w.includes('參考文獻')));assert.ok(result.warnings.some(w=>w.includes('作者簡介')));
 });
+
+test('作者頓號與圖說置中套版，四層內文縮排與行距遵循補充規範',async()=>{
+ const z=await JSZip.loadAsync(source);const $=xml(await z.file('word/document.xml').async('string'));
+ const p=t=>'<w:p><w:r><w:t>'+t+'</w:t></w:r></w:p>';
+ $('w\\:body').empty().append(p('感測技術研究')+p('王小明，陳小華')+p('摘要')+p('本文研究感測技術。')+p('一、研究方法')+p('第一層內文。')+p('(一) 子方法')+p('第二層內文。')+p('1. 實驗步驟')+p('第三層內文。')+p('(1) 詳細步驟')+p('第四層內文。')+p('圖一 實驗結果')+'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>');
+ z.file('word/document.xml',$.xml());const result=await applyTemplateWord(await z.generateAsync({type:'uint8array'}),template);
+ const doc=xml(await(await JSZip.loadAsync(result.bytes)).file('word/document.xml').async('string'));
+ const ps=doc('w\\:body').children('w\\:p').toArray();const find=t=>doc(ps.find(p=>doc(p).find('w\\:t').text()===t));
+ assert.ok(find('王小明、陳小華').length);assert.equal(find('圖一 實驗結果').find('w\\:jc').attr('w:val'),'center');
+ for(const [t,indent]of [['第一層內文。','200'],['第二層內文。','200'],['第三層內文。','0'],['第四層內文。','0']]){
+  const p=find(t);assert.equal(p.find('w\\:ind').attr('w:firstLineChars'),indent,t);assert.equal(p.find('w\\:spacing').attr('w:line'),'288');assert.equal(p.find('w\\:jc').attr('w:val'),'both');
+ }
+});

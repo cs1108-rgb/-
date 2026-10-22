@@ -7,11 +7,11 @@ export {policy} from './policy.js';
 
 export const articleDefaults={structure:true,typography:true,paragraph:true,headings:true,figures:true,references:true};
 export const ruleDefinitions=[
- ['structure','文章結構與範例文字','標題、作者、摘要、結論、參考文獻、作者簡介；提示未替換的範例內容。'],
+ ['structure','文章結構與範例文字','標題、作者（多人以頓號分隔）、摘要、正文、結論、參考文獻、作者簡介依序排列；提示未替換的範例內容。'],
  ['typography','字體與字級','微軟正黑體；文章標題 32pt，作者、摘要、內文 12pt。未明訂的章節標題字級不強制判定。'],
  ['paragraph','段落排版','A4 直式與指定範本邊界；摘要與內文左右對齊、1.2 倍行距；一般內文首行縮排兩字元，Heading 3／4 下內文不縮排。'],
- ['headings','標題層級','辨識 Heading 1–4 與大綱層級，提示跳級或以一般段落模擬的章節標題。'],
- ['figures','圖表與文中引用','圖說在下、表題在上、編號唯一、文中引用加粗；檢查圖片格式、尺寸與可讀取的有效 DPI。'],
+ ['headings','標題層級','Heading 1：一、；Heading 2：(一)；Heading 3：1.；Heading 4：(1)。不可跳級；第三、四層下內文不縮排。'],
+ ['figures','圖表與文中引用','圖說在圖片下方且置中、表題在上、編號唯一、文中引用加粗；檢查圖片格式、尺寸與可讀取的有效 DPI。'],
  ['references','文獻與人工複核','提示空白文獻、網址句號與不完整作者簡介；內容正確性、線條圖類型及文獻完整性須人工確認。']
 ].map(([key,title,description])=>({key,title,description}));
 
@@ -32,6 +32,7 @@ function props($,n){
  if(value($,n,'jc')!==undefined)r.align=value($,n,'jc');
  const spacing=direct($,n,'spacing');for(const k of ['line','lineRule'])if(attr(spacing,k)!==undefined)r[k]=attr(spacing,k);
  const ind=direct($,n,'ind');for(const k of ['firstLine','firstLineChars','hanging','hangingChars'])if(attr(ind,k)!==undefined)r[k]=Number(attr(ind,k));
+ const numPr=direct($,n,'numPr');if(numPr){r.numId=value($,numPr,'numId');r.ilvl=Number(value($,numPr,'ilvl')||0);}
  if(value($,n,'outlineLvl')!==undefined)r.outline=Number(value($,n,'outlineLvl'));
  return r;
 }
@@ -83,6 +84,7 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  });
  const textParas=paragraphs.filter(p=>p.text.trim()&&!p.inTable&&!p.inTextbox);
  if(!textParas.length)throw Error('找不到可檢核的文章文字。掃描圖片請先轉成可編輯的 Word 文字。');
+ const numbering=xml(await zip.file('word/numbering.xml')?.async('string')||'<numbering/>');
  const checks=[];const issues=[];
  function record(group,p,field,ok,message,suggestion,actual,expected,warning=false){
   if(enabled[group]===false)return;
@@ -105,6 +107,9 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  const abstract=abstractExplicit||textParas[2];
  record('structure',first,'文章標題',!!first,'缺少文章標題','請在文件最前方填寫文章標題。');
  record('structure',author,'作者',!!author&&!headingLike(author),'未能辨識標題後的作者列','請將作者姓名獨立放在標題後的下一個非空白段落。');
+ if(author&&!headingLike(author))record('structure',author,'作者分隔符號',/[，,；;／/＆&]/.test(author.text)?false:/\s+(?:與|及|和)\s+/.test(author.text)?null:true,'作者間請使用頓號「、」','多位作者請寫為「王小明、陳小華」；所屬單位請另列，勿將單位標點當成姓名分隔。',author.text,'作者甲、作者乙');
+ const ordered=[first,author,abstractExplicit,conclusion,refs,bio].filter(Boolean);
+ for(let i=1;i<ordered.length;i++)record('structure',ordered[i],'章節順序',ordered[i].number>ordered[i-1].number,'章節順序與規範不符','請依文章標題 → 作者 → 摘要 → 正文 → 結論 → 參考文獻 → 作者簡介排列；系統不自動搬動文章內容。');
  record('structure',abstract,'摘要',abstractExplicit?true:null,'摘要位置需確認','範本允許摘要不加標題；目前以作者後的第一段一般文字推定，請確認該段確為摘要。');
  for(const [title,p]of [['結論',conclusion],['參考文獻',refs],['作者簡介',bio]])record('structure',p,title,!!p,`未找到「${title}」段落`,`請加入「${title}」標題並填寫對應內容。`);
  for(const p of textParas){if(/這是(?:摘要|內文|結論內文)範例|作者\d|OOO研究室|單位名稱|標題[（(]32pt|姓名，出版資訊完整列出/.test(p.text))record('structure',p,'範例文字',false,'疑似尚未替換的範本內容','請將範例文字替換為本期實際文章、作者及所屬單位。',p.text.slice(0,80),'實際投稿內容',true);}
@@ -112,6 +117,21 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  for(const p of textParas){
   const special=[first,author,refs,bio,conclusion,abstractExplicit].includes(p);const caption=/^[圖表]\s*[一二三四五六七八九十百\d]+(?:[\s、.．：:]|$)/.test(p.text);
   if(p===conclusion)activeLevel=1;
+  if(p.level&&p!==first&&p!==author){
+   const markerLevel=/^[一二三四五六七八九十百]+、/.test(p.text)?1:/^[（(][一二三四五六七八九十百]+[）)]/.test(p.text)?2:/^\d+[.．]/.test(p.text)?3:/^[（(]\d+[）)]/.test(p.text)?4:null;
+   if(markerLevel)record('headings',p,'章節編號格式',p.level===markerLevel,'章節編號與 Heading 層級不一致','請依 Heading 1「一、」、Heading 2「(一)」、Heading 3「1.」、Heading 4「(1)」設定。',p.level,markerLevel);
+   if(!markerLevel&&p.format.numId&&p.format.numId!=='0'){
+    const num=numbering('*').filter((_,n)=>local(n)==='num'&&attr(n,'numId')===p.format.numId).get(0);
+    const aid=value(numbering,num,'abstractNumId');const abs=numbering('*').filter((_,n)=>local(n)==='abstractNum'&&attr(n,'abstractNumId')===aid).get(0);
+    const override=descendants(numbering,num,'lvl').find(n=>Number(attr(n,'ilvl'))===p.format.ilvl);
+    const lvl=override||descendants(numbering,abs,'lvl').find(n=>Number(attr(n,'ilvl'))===p.format.ilvl);
+    const fmt=value(numbering,lvl,'numFmt'),label=value(numbering,lvl,'lvlText');
+    const token='%'+(p.format.ilvl+1);const expectedLabel=p.level===1?token+'、':p.level===3?token+'.':'('+token+')';
+    const fmtOk=p.level<=2?['taiwaneseCounting','taiwaneseCountingThousand','chineseCounting','chineseCountingThousand'].includes(fmt):fmt==='decimal';
+    record('headings',p,'章節自動編號',lvl?fmtOk&&label?.replace(/[（）]/g,c=>c==='（'?'(':')')===expectedLabel:null,'自動編號與章節層級規範不符','請設定 Heading 1「一、」、Heading 2「(一)」、Heading 3「1.」、Heading 4「(1)」。',fmt+' '+label,expectedLabel);
+   }
+   if(!previousLevel&&!special)record('headings',p,'起始標題層級',p.level===1,'正文應從 Heading 1 開始','請先建立 Heading 1，再依序使用 Heading 2、3、4。',p.level,1,true);
+  }
   if(p.level&&p!==abstract&&p!==first&&p!==author){if(previousLevel&&p.level>previousLevel+1)record('headings',p,'標題層級',false,`標題由 Heading ${previousLevel} 跳至 Heading ${p.level}`,'請調整 Word 標題樣式，依 Heading 1、2、3、4 依序使用。',p.level,previousLevel+1,true);else record('headings',p,'標題層級',p.level<=4,'使用超出範本的標題層級','請使用 Heading 1–4，或人工確認此層級是否必要。',p.level,'1–4',true);activeLevel=p.level;previousLevel=p.level;}
   else if(!special&&p!==abstract&&headingLike(p)){record('headings',p,'標題樣式',null,'疑似章節標題未使用可辨識的大綱層級','請於 Word 套用 Heading 1–4；若此段為一般文字，可忽略此提示。');}
   const isHeading=!!p.level||headingLike(p);const isBody=!special&&!isHeading&&!caption&&p!==first&&p!==author&&(!refs||p.number<refs.number)&&(!bio||p.number<bio.number);
@@ -137,7 +157,7 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  const captions=textParas.filter(p=>/^[圖表]\s*[一二三四五六七八九十百\d]+(?:[\s、.．：:]|$)/.test(p.text));
  const normalize=s=>s.replace(/\s/g,'');const keyOf=p=>normalize(p.text.match(/^[圖表]\s*[一二三四五六七八九十百\d]+/)[0]);
  const capKeys=new Set();
- for(const p of captions){const key=keyOf(p);record('figures',p,'圖表編號',!capKeys.has(key),`圖表編號「${key}」重複`,'請重新編排圖表編號，並同步更新文中引用。');capKeys.add(key);
+ for(const p of captions){if(/^圖/.test(p.text))record('figures',p,'圖說置中',p.format.align==='center','圖說未置中','請選取圖片下方的圖說段落，設定置中對齊（Ctrl+E）。',p.format.align||'left','center');const key=keyOf(p);record('figures',p,'圖表編號',!capKeys.has(key),`圖表編號「${key}」重複`,'請重新編排圖表編號，並同步更新文中引用。');capKeys.add(key);
   const matches=textParas.filter(q=>!captions.includes(q)&&[...q.text.matchAll(/[圖表]\s*[一二三四五六七八九十百\d]+/g)].some(m=>normalize(m[0])===key));record('figures',p,'文中引用',matches.length>0,`找不到「${key}」的文中引用`,`請在內文提及「${key}」，並將引用文字加粗。`,null,key,true);
  }
  for(const p of textParas.filter(p=>!captions.includes(p))){const re=/[圖表]\s*[一二三四五六七八九十百\d]+/g;for(const m of p.text.matchAll(re)){

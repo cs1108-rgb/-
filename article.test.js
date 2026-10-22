@@ -22,3 +22,10 @@ test('未填章節及範例文字不會被當成合格文章',async()=>{const r=
 test('實際上傳範本可解析，保留來源版本及雜湊，不假設範本本身全部合格',async()=>{const r=await analyzeArticle(readFileSync('templates/article-format.docx'));assert.ok(r.summary.paragraphs>20);assert.equal(r.policy.sha256.length,64);assert.ok(r.issues.some(i=>i.field==='範例文字'));assert.equal(r.issues.find(i=>i.field==='摘要').paragraph,3)});
 test('圖片以像素及置入尺寸計算 DPI，圖說在下方',async()=>{const drawing='<w:p><w:r><w:drawing><wp:inline><wp:extent cx="3600000" cy="3600000"/><a:graphic><a:blip r:embed="rId1"/></a:graphic></wp:inline></w:drawing></w:r></w:p>';const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jV9kAAAAASUVORK5CYII=','base64');const r=await analyzeArticle(await document(start+drawing+para('圖一 測試')+end,{files:{'word/_rels/document.xml.rels':'<Relationships><Relationship Id="rId1" Target="media/test.png"/></Relationships>','word/media/test.png':png}}));assert.ok(has(r,'圖片有效解析度','failed'));assert.ok(has(r,'圖說位置','passed'));assert.ok(has(r,'線條圖解析度','manual'));assert.ok(has(r,'圖片寬度','passed'))});
 test('非 Word 與無文字文件明確拒絕',async()=>{await assert.rejects(analyzeArticle(Buffer.from('invalid')),/有效且未加密/);await assert.rejects(analyzeArticle(await document('<w:p/>')),/可檢核的文章文字/)});
+
+test('補充規範：作者頓號、圖說置中、編號層級與章節順序',async()=>{
+ const bad=await analyzeArticle(await document(para('技術研究')+para('王小明，陳小華')+para('摘要內容。')+para('一、研究方法','<w:pStyle w:val="H3"/>')+para('圖一 實驗結果','<w:jc w:val="left"/>')+para('作者簡介')+para('參考文獻')+para('結論')));
+ for(const field of ['作者分隔符號','圖說置中','章節編號格式','章節順序'])assert.ok(has(bad,field,'failed'),field);
+ const good=await analyzeArticle(await document(para('技術研究')+para('王小明、陳小華')+para('摘要內容。')+para('圖一 實驗結果','<w:jc w:val="center"/>')+end));
+ assert.ok(has(good,'作者分隔符號','passed'));assert.ok(has(good,'圖說置中','passed'));
+});
