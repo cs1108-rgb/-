@@ -29,3 +29,13 @@ test('補充規範：作者頓號、圖說置中、編號層級與章節順序',
  const good=await analyzeArticle(await document(para('技術研究')+para('王小明、陳小華')+para('摘要內容。')+para('圖一 實驗結果','<w:jc w:val="center"/>')+end));
  assert.ok(has(good,'作者分隔符號','passed'));assert.ok(has(good,'圖說置中','passed'));
 });
+
+test('圖說必須以兩個空格分隔，圖片置中列入檢核',async()=>{
+ const drawing=align=>'<w:p><w:pPr><w:jc w:val="'+align+'"/><w:ind w:firstLine="0" w:firstLineChars="0"/></w:pPr><w:r><w:drawing><wp:inline><wp:extent cx="3600000" cy="3600000"/></wp:inline></w:drawing></w:r></w:p>';
+ // A blip is required for an actual image in the analyzer.
+ const img=align=>drawing(align).replace('</wp:inline>','<a:blip r:embed="rId1"/></wp:inline>');
+ const bad=await analyzeArticle(await document(start+img('left')+para('圖一、說明')+end));
+ assert.ok(has(bad,'圖說編號分隔','failed'));assert.ok(has(bad,'圖片置中','failed'));
+ const good=await analyzeArticle(await document(start+img('center')+para('圖一  說明','<w:jc w:val="center"/>')+end));
+ assert.ok(has(good,'圖說編號分隔','passed'));assert.ok(has(good,'圖片置中','passed'));assert.ok(has(good,'圖說置中','passed'));
+});

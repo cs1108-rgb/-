@@ -11,7 +11,7 @@ export const ruleDefinitions=[
  ['typography','字體與字級','微軟正黑體；文章標題 32pt，作者、摘要、內文 12pt。未明訂的章節標題字級不強制判定。'],
  ['paragraph','段落排版','A4 直式與指定範本邊界；摘要與內文左右對齊、1.2 倍行距；一般內文首行縮排兩字元，Heading 3／4 下內文不縮排。'],
  ['headings','標題層級','Heading 1：一、；Heading 2：(一)；Heading 3：1.；Heading 4：(1)。不可跳級；第三、四層下內文不縮排。'],
- ['figures','圖表與文中引用','圖說在圖片下方且置中、表題在上、編號唯一、文中引用加粗；檢查圖片格式、尺寸與可讀取的有效 DPI。'],
+ ['figures','圖表與文中引用','圖片及圖說均置中；圖說使用「圖一  說明」（編號後兩個空格），在圖片下方、表題在上、編號唯一、文中引用加粗；檢查圖片格式、尺寸與可讀取的有效 DPI。'],
  ['references','文獻與人工複核','提示空白文獻、網址句號與不完整作者簡介；內容正確性、線條圖類型及文獻完整性須人工確認。']
 ].map(([key,title,description])=>({key,title,description}));
 
@@ -157,7 +157,7 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  const captions=textParas.filter(p=>/^[圖表]\s*[一二三四五六七八九十百\d]+(?:[\s、.．：:]|$)/.test(p.text));
  const normalize=s=>s.replace(/\s/g,'');const keyOf=p=>normalize(p.text.match(/^[圖表]\s*[一二三四五六七八九十百\d]+/)[0]);
  const capKeys=new Set();
- for(const p of captions){if(/^圖/.test(p.text))record('figures',p,'圖說置中',p.format.align==='center','圖說未置中','請選取圖片下方的圖說段落，設定置中對齊（Ctrl+E）。',p.format.align||'left','center');const key=keyOf(p);record('figures',p,'圖表編號',!capKeys.has(key),`圖表編號「${key}」重複`,'請重新編排圖表編號，並同步更新文中引用。');capKeys.add(key);
+ for(const p of captions){if(/^圖/.test(p.text))record('figures',p,'圖說編號分隔',/^圖[一二三四五六七八九十百\d]+ {2}\S/.test(p.text),'圖說編號後應使用兩個空格，不加頓號','請改為「圖一  說明」，編號與說明間使用兩個半形空格。',p.text,'圖一  說明');if(/^圖/.test(p.text))record('figures',p,'圖說置中',p.format.align==='center','圖說未置中','請選取圖片下方的圖說段落，設定置中對齊（Ctrl+E）。',p.format.align||'left','center');const key=keyOf(p);record('figures',p,'圖表編號',!capKeys.has(key),`圖表編號「${key}」重複`,'請重新編排圖表編號，並同步更新文中引用。');capKeys.add(key);
   const matches=textParas.filter(q=>!captions.includes(q)&&[...q.text.matchAll(/[圖表]\s*[一二三四五六七八九十百\d]+/g)].some(m=>normalize(m[0])===key));record('figures',p,'文中引用',matches.length>0,`找不到「${key}」的文中引用`,`請在內文提及「${key}」，並將引用文字加粗。`,null,key,true);
  }
  for(const p of textParas.filter(p=>!captions.includes(p))){const re=/[圖表]\s*[一二三四五六七八九十百\d]+/g;for(const m of p.text.matchAll(re)){
@@ -170,7 +170,9 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  const blocks=$(body).children().toArray();const blockOf=p=>{let n=p.node;while(n?.parent&&n.parent!==body)n=n.parent;return n;};
  function neighbour(block,direction){const index=blocks.indexOf(block);for(let j=index+direction;j>=0&&j<blocks.length;j+=direction){const pp=paragraphs.find(p=>blockOf(p)===blocks[j]&&p.text.trim());if(pp)return pp;if(local(blocks[j])==='tbl')return null;}return null;}
  let images=0;
- for(const p of paragraphs){for(const drawing of p.drawings){const blips=descendants($,drawing,'blip');for(const b of blips){images++;const rel=rels.get(attr(b,'embed')||attr(b,'link'));const target=rel&&!rel.external?packageTarget(rel.target||''):'';const file=zip.file(target);const ext=(target.split('/').pop().split('.').slice(1).pop()||'').toLowerCase();
+ for(const p of paragraphs){for(const drawing of p.drawings){
+   const anchor=descendants($,drawing,'anchor')[0],pos=anchor&&direct($,anchor,'positionH');const centered=anchor?$(direct($,pos,'align')).text()==='center'&&['column','margin'].includes(attr(pos,'relativeFrom')):p.format.align==='center'&&!(p.format.firstLine||p.format.firstLineChars||p.format.hanging||p.format.hangingChars);
+   record('figures',p,'圖片置中',centered,'圖片未水平置中','嵌入式圖片請將圖片段落置中並取消縮排；浮動圖片請設定相對於欄的水平置中。',centered?'center':'未置中','center');const blips=descendants($,drawing,'blip');for(const b of blips){images++;const rel=rels.get(attr(b,'embed')||attr(b,'link'));const target=rel&&!rel.external?packageTarget(rel.target||''):'';const file=zip.file(target);const ext=(target.split('/').pop().split('.').slice(1).pop()||'').toLowerCase();
    record('figures',p,'圖片格式',file?['jpg','jpeg','png','tif','tiff'].includes(ext):null,file?'圖片格式不符合 JPG／PNG／TIFF 規範':'外部圖片無法讀取','請嵌入原始 JPG、PNG 或 TIFF 圖片，不要使用低解析度 BMP。',ext||'外部或未知格式','JPG／PNG／TIFF');
    const extent=descendants($,drawing,'extent')[0];const cx=Number(attr(extent,'cx')),cy=Number(attr(extent,'cy'));const width=cx/360000;
    record('figures',p,'圖片寬度',cx?width>=8&&width<=12:null,'圖片寬度不在建議 8–12 cm 範圍','請依 A4 版面檢視圖片寬度，建議設為 8–12 cm；特殊版型可人工確認後保留。',cx?width.toFixed(2)+' cm':'無法解析','建議 8–12 cm',true);

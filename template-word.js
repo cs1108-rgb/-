@@ -108,10 +108,27 @@ export async function applyTemplateWord(buffer,templateBuffer,enabled=articleDef
  function sortProps(node){const children=$(node).children().toArray();children.sort((a,b)=>{const ai=ppOrder.indexOf(local(a)),bi=ppOrder.indexOf(local(b));return (ai<0?100:ai)-(bi<0?100:bi)});for(const c of children)$(node).append(c);return node;}
  function styleFor(role){if(roleStyle.has(role))return roleStyle.get(role);const id=prefix+'Role_'+role;for(const old of elements(styles,sRoot,'style').filter(n=>val(n,'styleId')===id))styles(old).remove();const p=prototype(role);sortProps(p);const pt=role==='Title'?32:role==='H1'?14:12;const bold=role==='H1';styles(sRoot).append(`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${names[role]} · 量測資訊範本"/><w:qFormat/>${$.xml(p)}<w:rPr><w:rFonts w:ascii="微軟正黑體" w:hAnsi="微軟正黑體" w:eastAsia="微軟正黑體" w:cs="微軟正黑體"/><w:b w:val="${bold?1:0}"/><w:bCs w:val="${bold?1:0}"/><w:color w:val="000000"/><w:sz w:val="${pt*2}"/><w:szCs w:val="${pt*2}"/></w:rPr></w:style>`);roleStyle.set(role,id);return id;}
  for(const [index,p]of nodes.entries()){
-  const content=text($,p);if(!content.trim())continue;
+  const drawings=all($,p,'drawing');const legacy=all($,p,'pict');
+  if(drawings.length||legacy.length){
+   let props=first($,p,'pPr');if(!props){$(p).prepend('<w:pPr/>');props=first($,p,'pPr');}
+   remove($,props,'jc');$(props).append('<w:jc w:val="center"/>');remove($,props,'ind');$(props).append('<w:ind w:left="0" w:right="0" w:firstLine="0" w:firstLineChars="0"/>');sortProps(props);
+   for(const anchor of drawings.flatMap(d=>all($,d,'anchor'))){let pos=first($,anchor,'positionH');if(!pos){$(anchor).children().first().after('<wp:positionH xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" relativeFrom="column"><wp:align>center</wp:align></wp:positionH>');pos=first($,anchor,'positionH');}$(pos).attr('relativeFrom','column');$(pos).empty().append('<wp:align xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">center</wp:align>');}
+   if(legacy.length)warnings.push(`第 ${index+1} 段含舊式圖形，已置中段落，圖形絕對位置請於 Word 人工確認。`);
+   changes.push({paragraph:index+1,location:`第 ${index+1} 段`,excerpt:text($,p).slice(0,120),field:'圖片置中',before:'原稿圖片位置',after:'圖片段落置中；浮動圖片於欄內水平置中'});
+  }
+  let content=text($,p);if(!content.trim())continue;
+  const figurePrefix=content.match(/^(圖\s*[一二三四五六七八九十百\d]+)[\s、，,.．：:]+(?=\S)/);
+  if(figurePrefix){
+   const replacement=figurePrefix[1].replace(/\s/g,'')+'  ';let remaining=figurePrefix[0].length,inserted=false;
+   for(const t of all($,p,'t').filter(t=>preferred($,t))){if(!remaining)break;const str=$(t).text();if(!str.length)continue;const consumed=Math.min(str.length,remaining);$(t).text((!inserted?replacement:'')+str.slice(consumed)).attr('xml:space','preserve');if(str.length)inserted=true;remaining-=consumed;}
+   const updated=text($,p);if(updated!==content)changes.push({paragraph:index+1,location:`第 ${index+1} 段`,excerpt:content.slice(0,120),field:'圖說編號分隔',before:content,after:updated});
+   content=updated;originalText[index]=content;
+  }
+
   const parents=$(p).parents().toArray();if(parents.some(a=>local(a)==='txbxContent')){warnings.push(`第 ${index+1} 段為文字方塊，位置需人工確認。`);continue;}
   const info=styleInfo.get(index+1);const level=heading(info,content);let role='Body'+active;
-  if(parents.some(a=>local(a)==='tc'))role='Cell';
+  if(/^圖\s*[一二三四五六七八九十百\d]+[\s、.．：:]/.test(content))role='Caption';
+  else if(parents.some(a=>local(a)==='tc'))role='Cell';
   else if(top[0]?.p===p)role='Title';else if(author?.p===p)role='Author';
   else if([refs?.p,conclusion?.p,bio?.p,abstract?.p,graphics?.p].includes(p)){role='H1';active=1;}
   else if(/^[^/／]{1,40}\s*[/／]\s*[^/／]{1,100}\s*[/／]\s*[^/／]{1,50}$/.test(content))role='Bio';
@@ -127,7 +144,9 @@ export async function applyTemplateWord(buffer,templateBuffer,enabled=articleDef
   if(manualNumber&&role.startsWith('H'))warnings.push('原稿以文字輸入的章節編號保留，已統一層級與版型；自動編號的樣式仍請人工確認。');
   const numSource=role.startsWith('H')?{H1:'9',H2:'10',H3:'11',H4:'12'}[role]:role==='Reference'?'8':null;
   const sectionHeading=[refs?.p,conclusion?.p,bio?.p,abstract?.p,graphics?.p].includes(p);
-  if(numSource&&!manualNumber&&!sectionHeading)$(pp).append(`<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${numMap.get(numSource)}"/></w:numPr>`);else if(oldNum&&!numSource)$(pp).append($.xml(oldNum));
+  if(numSource&&!manualNumber&&!sectionHeading)$(pp).append(`<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${numMap.get(numSource)}"/></w:numPr>`);else if(oldNum&&!numSource&&role!=='Caption')$(pp).append($.xml(oldNum));
+  if(role==='Caption')$(pp).append('<w:numPr><w:numId w:val="0"/></w:numPr>');
+  if(drawings.length||legacy.length){remove($,pp,'jc');$(pp).append('<w:jc w:val="center"/>');remove($,pp,'ind');$(pp).append('<w:ind w:left="0" w:right="0" w:firstLine="0" w:firstLineChars="0"/>');}
   if(role.startsWith('H'))$(pp).append(`<w:outlineLvl w:val="${Number(role.slice(1))-1}"/>`);else $(pp).append('<w:outlineLvl w:val="9"/>');
   if(preservedSection)$(pp).append($.xml(preservedSection));sortProps(pp);if(oldPr)$(oldPr).replaceWith(pp);else $(p).prepend(pp);
   for(const run of all($,p,'r').filter(r=>$(r).parents().toArray().find(a=>local(a)==='p')===p&&preferred($,r))){if(!all($,run,'t').length)continue;let rp=first($,run,'rPr');if(!rp){$(run).prepend('<w:rPr/>');rp=first($,run,'rPr');}

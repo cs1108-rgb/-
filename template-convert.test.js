@@ -47,8 +47,27 @@ test('作者頓號與圖說置中套版，四層內文縮排與行距遵循補�
  z.file('word/document.xml',$.xml());const result=await applyTemplateWord(await z.generateAsync({type:'uint8array'}),template);
  const doc=xml(await(await JSZip.loadAsync(result.bytes)).file('word/document.xml').async('string'));
  const ps=doc('w\\:body').children('w\\:p').toArray();const find=t=>doc(ps.find(p=>doc(p).find('w\\:t').text()===t));
- assert.ok(find('王小明、陳小華').length);assert.equal(find('圖一 實驗結果').find('w\\:jc').attr('w:val'),'center');
+ assert.ok(find('王小明、陳小華').length);assert.equal(find('圖一  實驗結果').find('w\\:jc').attr('w:val'),'center');
  for(const [t,indent]of [['第一層內文。','200'],['第二層內文。','200'],['第三層內文。','0'],['第四層內文。','0']]){
   const p=find(t);assert.equal(p.find('w\\:ind').attr('w:firstLineChars'),indent,t);assert.equal(p.find('w\\:spacing').attr('w:line'),'288');assert.equal(p.find('w\\:jc').attr('w:val'),'both');
  }
+});
+
+test('空白圖片段落與浮動圖片均置中，拆分圖說頓號改兩空格且保留說明及圖片',async()=>{
+ const z=await JSZip.loadAsync(source);const $=xml(await z.file('word/document.xml').async('string'));
+ const wp='http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+ $('w\\:body').empty().append('<w:p><w:r><w:t>量測研究</w:t></w:r></w:p><w:p><w:r><w:t>王小明</w:t></w:r></w:p><w:p><w:r><w:t>摘要內容。</w:t></w:r></w:p>'+
+ '<w:p><w:pPr><w:jc w:val="left"/><w:ind w:left="480"/></w:pPr><w:r><w:drawing><wp:inline xmlns:wp="'+wp+'"><wp:extent cx="3600000" cy="3600000"/></wp:inline></w:drawing></w:r></w:p>'+
+ '<w:p><w:r><w:t/></w:r><w:r><w:t>圖</w:t></w:r><w:r><w:t>一、</w:t></w:r><w:r><w:t>說明原文，保留標點。</w:t></w:r></w:p>'+
+ '<w:p><w:r><w:drawing><wp:anchor xmlns:wp="'+wp+'"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>100</wp:posOffset></wp:positionH></wp:anchor></w:drawing></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>');
+ z.file('word/document.xml',$.xml());const result=await applyTemplateWord(await z.generateAsync({type:'uint8array'}),template);
+ const zip=await JSZip.loadAsync(result.bytes),doc=xml(await zip.file('word/document.xml').async('string'));
+ const paragraphs=doc('w\\:body').children('w\\:p').toArray();
+ for(const i of [3,4,5])assert.equal(doc(paragraphs[i]).find('w\\:jc').attr('w:val'),'center');
+ assert.equal(doc(paragraphs[4]).find('w\\:t').text(),'圖一  說明原文，保留標點。');
+ assert.equal(doc(paragraphs[4]).find('w\\:numId').attr('w:val'),'0');
+ assert.equal(doc('wp\\:positionH').attr('relativeFrom'),'column');assert.equal(doc('wp\\:positionH wp\\:align').text(),'center');
+ assert.ok(result.changes.some(c=>c.field==='圖說編號分隔'));assert.ok(result.changes.some(c=>c.field==='圖片置中'));
+ for(const name of Object.keys(z.files).filter(n=>n.startsWith('word/media/')))assert.deepEqual(await z.file(name).async('uint8array'),await zip.file(name).async('uint8array'));
+ const again=await applyTemplateWord(result.bytes,template);assert.deepEqual(await textList(again.bytes),await textList(result.bytes));
 });
