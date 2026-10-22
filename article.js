@@ -1,11 +1,10 @@
 import JSZip from 'jszip';
-import {load} from 'cheerio';
+import {load} from 'cheerio/slim';
 import {imageSize} from 'image-size';
-import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
-import path from 'node:path';
+import {policy} from './policy.js';
+export {policy} from './policy.js';
 
-export const policy={version:'article-format-v1',source:'1-表單-量測資訊撰文格式.docx',sha256:createHash('sha256').update(readFileSync(new URL('./templates/article-format.docx',import.meta.url))).digest('hex'),font:'微軟正黑體',titlePt:32,bodyPt:12,line:1.2,firstLineChars:2,imageDpi:300,lineArtDpi:600,imageWidthCm:[8,12]};
+
 export const articleDefaults={structure:true,typography:true,paragraph:true,headings:true,figures:true,references:true};
 export const ruleDefinitions=[
  ['structure','文章結構與範例文字','標題、作者、摘要、結論、參考文獻、作者簡介；提示未替換的範例內容。'],
@@ -16,6 +15,7 @@ export const ruleDefinitions=[
  ['references','文獻與人工複核','提示空白文獻、網址句號與不完整作者簡介；內容正確性、線條圖類型及文獻完整性須人工確認。']
 ].map(([key,title,description])=>({key,title,description}));
 
+function packageTarget(target){const parts=[];for(const segment of (target.startsWith('/')?target:'word/'+target).split('/')){if(segment==='..')parts.pop();else if(segment&&segment!=='.')parts.push(segment);}return parts.join('/');}
 const local=n=>n?.name?.split(':').pop();
 const direct=($,n,name)=>$(n).children().toArray().find(c=>local(c)===name);
 const descendants=($,n,name)=>$(n).find('*').toArray().filter(c=>local(c)===name);
@@ -142,11 +142,11 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
  const blocks=$(body).children().toArray();const blockOf=p=>{let n=p.node;while(n?.parent&&n.parent!==body)n=n.parent;return n;};
  function neighbour(block,direction){const index=blocks.indexOf(block);for(let j=index+direction;j>=0&&j<blocks.length;j+=direction){const pp=paragraphs.find(p=>blockOf(p)===blocks[j]&&p.text.trim());if(pp)return pp;if(local(blocks[j])==='tbl')return null;}return null;}
  let images=0;
- for(const p of paragraphs){for(const drawing of p.drawings){const blips=descendants($,drawing,'blip');for(const b of blips){images++;const rel=rels.get(attr(b,'embed')||attr(b,'link'));const target=rel&&!rel.external?path.posix.normalize(path.posix.join('word',rel.target||'')):'';const file=zip.file(target);const ext=path.posix.extname(target).slice(1).toLowerCase();
+ for(const p of paragraphs){for(const drawing of p.drawings){const blips=descendants($,drawing,'blip');for(const b of blips){images++;const rel=rels.get(attr(b,'embed')||attr(b,'link'));const target=rel&&!rel.external?packageTarget(rel.target||''):'';const file=zip.file(target);const ext=(target.split('/').pop().split('.').slice(1).pop()||'').toLowerCase();
    record('figures',p,'圖片格式',file?['jpg','jpeg','png','tif','tiff'].includes(ext):null,file?'圖片格式不符合 JPG／PNG／TIFF 規範':'外部圖片無法讀取','請嵌入原始 JPG、PNG 或 TIFF 圖片，不要使用低解析度 BMP。',ext||'外部或未知格式','JPG／PNG／TIFF');
    const extent=descendants($,drawing,'extent')[0];const cx=Number(attr(extent,'cx')),cy=Number(attr(extent,'cy'));const width=cx/360000;
    record('figures',p,'圖片寬度',cx?width>=8&&width<=12:null,'圖片寬度不在建議 8–12 cm 範圍','請依 A4 版面檢視圖片寬度，建議設為 8–12 cm；特殊版型可人工確認後保留。',cx?width.toFixed(2)+' cm':'無法解析','建議 8–12 cm',true);
-   let dims;try{if(file)dims=imageSize(await file.async('nodebuffer'));}catch{}
+   let dims;try{if(file)dims=imageSize(await file.async('uint8array'));}catch{}
    const dpi=dims&&cx&&cy?Math.min(dims.width/(cx/914400),dims.height/(cy/914400)):null;
    record('figures',p,'圖片有效解析度',dpi!==null?dpi>=300:null,dpi!==null?'圖片依置入尺寸計算低於 300 dpi':'無法取得圖片像素或顯示尺寸','請以高解析度原圖替換，或縮小置入尺寸；一般彩色圖片至少 300 dpi，線條圖至少 600 dpi。',dpi!==null?Math.round(dpi)+' dpi':'未知','彩色 ≥300 dpi');
    record('figures',p,'線條圖解析度',null,dpi!==null?`圖片類型須確認（有效解析度約 ${Math.round(dpi)} dpi）`:'圖片類型與解析度須人工確認',dpi!==null&&dpi>=600?'若為線條圖，解析度已達 600 dpi；請確認圖像類型及清晰度。':'若為線條圖，需至少 600 dpi；請人工確認類型並依需求替換原圖。');

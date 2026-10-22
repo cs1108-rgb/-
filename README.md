@@ -1,6 +1,28 @@
 # 衡序 MeasureOS — 量測資訊文章檢核
 
-## Windows 快速開始
+## Windows 免安裝：單一 HTML（建議）
+1. 下載 [單檔 HTML 壓縮包](releases/MeasureOS-HTML.zip)，全部解壓縮後只有一個 `MeasureOS.html`。
+2. 使用最新版 Edge 或 Chrome 雙擊開啟，不需安裝 Node.js，也不需要啟動命令視窗或伺服器。
+3. 點「新增文章檢核」，選擇刊期及 `.docx` 文章，即可查看逐項錯誤與修改建議。
+
+亦提供 [原始 HTML 檔案](releases/MeasureOS.html)。GitHub 可能顯示原始碼，請使用「Download raw file」下載並保留 `.html` 副檔名，不要將副檔名改為 `.txt`。
+
+Word 解析、檢核程式與原始範本皆包在 HTML 內，執行時不呼叫後端、不載入 CDN、不傳送文件至伺服器。圖表與文字檢核引擎與 Node.js 版共用。
+
+### 單檔版歷史與備份
+- 使用 IndexedDB 保存在目前瀏覽器，**資料不會自動寫回 HTML 檔案**。
+- 更換瀏覽器／電腦、清除網站資料或移動 HTML 可能無法取回歷史，請固定使用同一瀏覽器並定期「匯出完整備份」。
+- 完整 JSON 備份包含原始 Word、所有歷史結果與各次規則快照；在同檔版點「匯入備份」可合併還原。重複紀錄會略過，當前規則開關不覆寫。
+- 「匯出完整報告」僅匯出單筆報告，不是含原稿的完整歷史備份。
+- 若瀏覽器禁用儲存，會顯示「暫存模式」，關閉前必須匯出備份。
+- 單檔版不能直接讀取既有 SQLite；SQLite 模式的資料仍由原 Node.js 版管理。
+- 如電腦的企業政策禁止本機 HTML、JavaScript 或儲存，需請資訊人員確認允許的使用方式，不應繞過政策。
+
+### 單檔版建置與驗證
+開發者可執行 `npm run build:standalone` 重新產生 HTML 與只有一個 HTML 的 ZIP；使用者無需執行此命令。
+已用瀏覽器攔截 HTML 載入並關閉網路，驗證 Word 上傳、原稿下載、規則／歷史重新載入、備份還原與去重、行動版及禁止儲存時的提示。載入後沒有 HTTP 請求。測試環境的瀏覽器管理政策封鎖 `file://`，所以 Windows 雙擊本機檔案仍待實機驗證。
+
+## Windows Node.js 版（另一種選擇）
 1. 下載 [Windows 本機程式包](releases/MeasureOS-Windows.zip)，並全部解壓縮。
 2. 安裝 [Node.js 24 LTS](https://nodejs.org/)。
 3. 雙擊 `SETUP-WINDOWS.cmd`（首次需網路），完成後雙擊 `START-WINDOWS.cmd`。

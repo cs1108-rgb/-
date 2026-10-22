@@ -1,0 +1,15 @@
+import {build} from 'esbuild';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import JSZip from 'jszip';
+import {policy} from '../policy.js';
+const template=await readFile(new URL('../templates/article-format.docx',import.meta.url));
+if(createHash('sha256').update(template).digest('hex')!==policy.sha256)throw Error('Template hash differs from the policy. Review the policy before building.');
+const result=await build({entryPoints:['standalone-entry.jsx'],bundle:true,format:'iife',platform:'browser',write:false,minify:true,target:'es2022',legalComments:'inline',loader:{'.css':'empty'},define:{'process.env.NODE_ENV':'"production"'}});
+const script=result.outputFiles[0].text.replace(/<\/script/gi,'<\\/script');
+const css=(await readFile('style.css','utf8')).replace(/<\/style/gi,'<\\/style');
+const html=`<!doctype html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>衡序｜量測資訊檢核系統・單檔離線版</title><style>${css}</style></head><body><div id="root"><p style="padding:32px;font-family:'Microsoft JhengHei',sans-serif">正在啟動量測資訊檢核系統…</p></div><noscript>請使用允許 JavaScript 的 Edge 或 Chrome 開啟此 HTML 檔案。</noscript><script>globalThis.MEASUREOS_TEMPLATE_BASE64=${JSON.stringify(template.toString('base64'))};</script><script>${script}</script></body></html>`;
+await mkdir('releases',{recursive:true});
+await writeFile('releases/MeasureOS.html',html);
+const zip=new JSZip();zip.file('MeasureOS.html',html);await writeFile('releases/MeasureOS-HTML.zip',await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
+console.log(`Standalone HTML built: releases/MeasureOS.html (${Buffer.byteLength(html).toLocaleString()} bytes). ZIP contains only that one HTML file. No runtime server or CDN required.`);

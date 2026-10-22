@@ -7,7 +7,8 @@
     "dev": "node start-development.js",
     "build": "vite build",
     "start": "node start-production.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build:standalone": "node scripts/build-standalone.js"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -19,5 +20,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
