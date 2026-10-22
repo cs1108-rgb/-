@@ -122,7 +122,7 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
   }
  }
  if(enabled.headings!==false&&!textParas.some(p=>p.level))record('headings',null,'標題辨識',null,'未辨識到 Word 標題層級','請為章節套用 Heading 1–4；範本中的部分標題僅有外觀格式，系統無法由外觀確定層級。');
- if(conclusion){const next=textParas[textParas.indexOf(conclusion)+1];record('structure',conclusion,'結論內容',!!next&&!headingLike(next),'結論段落沒有內文','請於結論標題下補上研究結果與重點結論。');}
+ if(conclusion){const next=textParas[textParas.indexOf(conclusion)+1];const explicitSection=next&&['參考文獻','作者簡介','結論'].some(t=>next.text.replace(/\s/g,'')===t);const uncertain=next&&!explicitSection&&headingLike(next);record('structure',conclusion,'結論內容',!next||explicitSection?false:uncertain?null:true,uncertain?'結論後段落使用標題樣式，內容角色需確認':'結論段落沒有內文',uncertain?'請確認結論標題後是否已有內文；若是內文，請改用一般內文樣式。':'請於結論標題下補上研究結果與重點結論。');}
  if(refs){const content=textParas.filter(p=>p.number>refs.number&&(!bio||p.number<bio.number));record('references',refs,'文獻內容',content.length>0,'參考文獻未填寫內容','請在參考文獻標題下列出作者、出版資料或網址。');for(const p of content)if(/https?:\/\//i.test(p.text))record('references',p,'網址標點',!/[。．.]\s*$/.test(p.text),'網址結尾不需句號','請移除網址末尾額外加上的句號；網址本身的必要符號請保留。');record('references',refs,'文獻正確性',null,'文獻出版資訊與引用關係須人工確認','請確認作者、篇名、出版資訊及網址完整正確，且與內文引用一致。');}
  if(bio){const content=textParas.filter(p=>p.number>=bio.number);record('references',bio,'作者簡介內容',content.some(p=>/[^/]+[/／][^/]+[/／][^/]+/.test(p.text)), '作者簡介缺少姓名／單位／職稱','請依「作者姓名／單位名稱／職稱」補齊每位作者的資料。',null,'姓名／單位／職稱',true);}
  // Match captions and references; heading/body excerpt offsets are preserved for split bold runs.
