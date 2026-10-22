@@ -37,7 +37,7 @@ async function main(){
  for(let i=0;i<100;i++){
   if(childError)throw childError;
   if(child.exitCode!==null)throw Error('The local service stopped. Read the error above.');
-  try{const r=await fetch(url+'/api/policy',{signal:AbortSignal.timeout(500)});if(r.ok&&(await r.json()).version==='article-format-v1'){ready=true;break}}catch{}
+  try{const r=await fetch(url+'/api/policy',{signal:AbortSignal.timeout(500)});if(r.ok&&(await r.json()).version?.startsWith('article-format-')){ready=true;break}}catch{}
   await delay(100);
  }
  if(!ready){stop();throw Error('The service did not become ready. Check the error above.');}

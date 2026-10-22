@@ -73,5 +73,7 @@ export async function installBrowserStore(){
  globalThis.measureosGetOriginal=async id=>{const r=await getOne(Number(id));if(!r?.original)throw Error('此紀錄沒有原始 Word，請重新上傳文章後再產生格式修訂副本。');return r.original;};
  globalThis.measureosExportBackup=exportBackup;
  globalThis.measureosImportBackup=importBackup;
- globalThis.measureosTemplateURL=URL.createObjectURL(new Blob([fromBase64(globalThis.MEASUREOS_TEMPLATE_BASE64)],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
+ const templateBlob=new Blob([fromBase64(globalThis.MEASUREOS_TEMPLATE_BASE64)],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+ globalThis.measureosGetTemplate=async()=>templateBlob;
+ globalThis.measureosTemplateURL=URL.createObjectURL(templateBlob);
 }

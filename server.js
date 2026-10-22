@@ -19,7 +19,7 @@ const decode=r=>({...r,issues:JSON.parse(r.issues||'[]'),...(r.rows?{rows:JSON.p
 app.get('/api/reports',(req,res)=>res.json(db.prepare('SELECT id,name,period,created,total,issues,kind,metadata,rules FROM reports ORDER BY id DESC').all().map(decode)));
 app.get('/api/reports/:id',(req,res)=>{const r=db.prepare('SELECT id,name,period,created,total,issues,rows,kind,metadata,rules, original IS NOT NULL AS hasOriginal FROM reports WHERE id=?').get(req.params.id);if(!r)return res.status(404).json({error:'找不到紀錄'});res.json(decode(r))});
 app.get('/api/reports/:id/original',(req,res)=>{const r=db.prepare('SELECT name,original FROM reports WHERE id=?').get(req.params.id);if(!r?.original)return res.status(404).json({error:'此紀錄未保留原始 Word 檔案'});res.setHeader('Content-Disposition',`attachment; filename="article.docx"; filename*=UTF-8''${encodeURIComponent(r.name)}`);res.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document').send(Buffer.from(r.original))});
-const templatePath=fileURLToPath(new URL('./templates/article-format.docx',import.meta.url));
+const templatePath=fileURLToPath(new URL('./templates/article-format-a4.docx',import.meta.url));
 app.get(['/api/template','/api/template/word'],(req,res)=>res.download(templatePath,'量測資訊撰文格式.docx'));
 app.post('/api/upload',multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:1}}).single('file'),async(req,res)=>{try{
  if(!req.file||! /\.docx$/i.test(req.file.originalname))return res.status(400).json({error:'文章格式檢核僅支援 Word（.docx）。舊版 .doc 請先另存為 .docx。'});

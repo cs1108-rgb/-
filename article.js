@@ -9,7 +9,7 @@ export const articleDefaults={structure:true,typography:true,paragraph:true,head
 export const ruleDefinitions=[
  ['structure','文章結構與範例文字','標題、作者、摘要、結論、參考文獻、作者簡介；提示未替換的範例內容。'],
  ['typography','字體與字級','微軟正黑體；文章標題 32pt，作者、摘要、內文 12pt。未明訂的章節標題字級不強制判定。'],
- ['paragraph','段落排版','摘要與內文左右對齊、1.2 倍行距；一般內文首行縮排兩字元，Heading 3／4 下內文不縮排。'],
+ ['paragraph','段落排版','A4 直式與指定範本邊界；摘要與內文左右對齊、1.2 倍行距；一般內文首行縮排兩字元，Heading 3／4 下內文不縮排。'],
  ['headings','標題層級','辨識 Heading 1–4 與大綱層級，提示跳級或以一般段落模擬的章節標題。'],
  ['figures','圖表與文中引用','圖說在下、表題在上、編號唯一、文中引用加粗；檢查圖片格式、尺寸與可讀取的有效 DPI。'],
  ['references','文獻與人工複核','提示空白文獻、網址句號與不完整作者簡介；內容正確性、線條圖類型及文獻完整性須人工確認。']
@@ -89,6 +89,14 @@ export async function analyzeArticle(buffer,enabled=articleDefaults){
   const status=ok===null?'manual':ok?'passed':warning?'warning':'failed';
   const c={group,field,status,paragraph:p?.number??null,location:p?`第 ${p.number} 段`:'整份文件',excerpt:p?.text?.slice(0,120)||'',actual:actual??null,expected:expected??null};checks.push(c);
   if(status!=='passed')issues.push({...c,rule:group,level:status==='failed'?'error':'warning',message,suggestion});
+ }
+ const sections=descendants($,body,'sectPr');
+ if(!sections.length)record('paragraph',null,'文件頁面設定',null,'文件未儲存明確頁面設定','請在 Word 設定 A4 直式，或使用「依範本匯出 Word」統一套版。');
+ for(const[si,section]of sections.entries()){
+  const pg=direct($,section,'pgSz');const width=Number(attr(pg,'w')),height=Number(attr(pg,'h'));
+  record('paragraph',null,`第 ${si+1} 節 A4 頁面`,pg?Math.abs(width-11906)<=5&&Math.abs(height-16838)<=5:null,'頁面尚未設定為 A4 直式','請選擇 A4（21 × 29.7 公分），或使用「依範本匯出 Word」自動統一。',pg?`${(width/1440*2.54).toFixed(2)} × ${(height/1440*2.54).toFixed(2)} cm`:'未設定','A4 21 × 29.7 cm');
+  const margins=direct($,section,'pgMar');const known=margins&&Object.keys(policy.outputMarginsTwips).every(k=>attr(margins,k)!==undefined);
+  record('paragraph',null,`第 ${si+1} 節頁面邊界`,known?Object.entries(policy.outputMarginsTwips).every(([k,v])=>Math.abs(Number(attr(margins,k))-v)<=5):null,'頁面邊界與指定範本不同','請使用「依範本匯出 Word」套用指定範本的邊界與頁首頁尾。',known?Object.entries(policy.outputMarginsTwips).map(([k])=>`${k}=${attr(margins,k)}`).join(', '):'未設定完整邊界',Object.entries(policy.outputMarginsTwips).map(([k,v])=>`${k}=${v}`).join(', '));
  }
  const first=textParas[0],author=textParas[1];const section=t=>textParas.find(p=>p.text.replace(/\s+/g,'').replace(/^[一二三四五六七八九十0-9、.．（）()]+/,'').startsWith(t));
  const refs=section('參考文獻'),conclusion=section('結論'),bio=section('作者簡介');
